@@ -1,6 +1,6 @@
 FROM jupyter/base-notebook:45bfe5a474fa AS base
 
-FROM illumidesk/base-notebook:latest
+FROM illumidesk/rocker:local
 
 ARG NB_UID=1000
 ARG NB_GID=100
@@ -51,15 +51,13 @@ RUN echo "auth requisite pam_deny.so" >> /etc/pam.d/su && \
     sed -i.bak -e 's/^%admin/#%admin/' /etc/sudoers && \
     sed -i.bak -e 's/^%sudo/#%sudo/' /etc/sudoers && \
     chmod g+w /etc/passwd && \
-    fix-permissions "${HOME}" && \
-    fix-permissions "${CONDA_DIR}"
+    fix-permissions "${HOME}"
 
 # create path required by start.sh
 RUN mkdir -p /etc/sudoers.d/
 
 # update permissions as root
 RUN fix-permissions /etc/jupyter/ \
- && fix-permissions "${CONDA_DIR}" \
  && fix-permissions "${HOME}"
 
 USER "${NB_UID}"
@@ -77,23 +75,11 @@ RUN jupyter serverextension enable --sys-prefix --py jupyter_server_proxy \
  && npm cache clean --force \
  && rm -rf "${HOME}/.cache/yarn" \
  && rm -rf "${HOME}/.node-gyp" \
- && fix-permissions "${CONDA_DIR}" \
  && fix-permissions "${HOME}"
 
 # Install Tini
-RUN conda install --quiet --yes 'tini=0.18.0' && \
-    conda list tini | grep tini | tr -s ' ' | cut -d ' ' -f 1,2 >> $CONDA_DIR/conda-meta/pinned && \
-    conda clean --all -f -y && \
-    fix-permissions $CONDA_DIR && \
-    fix-permissions /home/$NB_USER
-
-USER root
-
-# create symlink to jupyterhub-singleuser to handle run/spawn when setting user to root(0)
-RUN ln -s "${CONDA_DIR}/envs/notebook/bin/jupyter" /usr/local/bin/ \
- && ln -s "${CONDA_DIR}/envs/notebook/bin/jupyterhub-singleuser" /usr/local/bin/
-
-USER "${NB_UID}"
+RUN pip install tini==0.18.0 \
+ && fix-permissions /home/$NB_USER
 
 # install nbgrader and then disable all extensions by default
 RUN jupyter nbextension install --symlink --sys-prefix --py nbgrader --overwrite \
